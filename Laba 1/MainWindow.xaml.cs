@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,28 +14,19 @@ using LiveChartsCore.SkiaSharpView.WPF;
 
 namespace AlgorithmBenchmark
 {
-    /// <summary>
-    /// Окно приложения
-    /// </summary>
     public partial class MainWindow : Window
     {
-        // Элементы управления интерфейса  
-        private TextBox _txtStartN;        // Поле ввода начального размера массива (N)
-        private TextBox _txtEndN;          // Поле ввода конечного размера массива (N)
-        private TextBox _txtStep;          // Поле ввода шага приращения размера
-        private Button _btnStart;          // Кнопка запуска процесса тестирования
-        private ProgressBar _progressBar;  // Индикатор прогресса выполнения расчетов
+        private TextBox _txtStartN;
+        private TextBox _txtEndN;
+        private TextBox _txtStep;
+        private Button _btnStart;
+        private ProgressBar _progressBar;
 
-        // Элементы библиотеки LiveCharts2        
         private CartesianChart _chart;
-        private readonly List<ObservablePoint> _chartValues = new();
+        private readonly ObservableCollection<ObservablePoint> _chartValues = new();
 
-        /// <summary>
-        /// Конструктор главного окна. Инициализирует базовые параметры окна и запускает сборку UI.
-        /// </summary>
         public MainWindow()
         {
-            // Настройка свойств
             Title = "Анализ времени выполнения алгоритма";
             Width = 900;
             Height = 600;
@@ -58,9 +52,9 @@ namespace AlgorithmBenchmark
 
             StackPanel controlsPanel = new StackPanel { Orientation = Orientation.Horizontal };
 
-            _txtStartN = AddInputField("Старт (N):", "1000000", controlsPanel);
-            _txtEndN = AddInputField("Конец (N):", "10000000", controlsPanel);
-            _txtStep = AddInputField("Шаг (Step):", "1000000", controlsPanel);
+            _txtStartN = AddInputField("Старт (N):", "0", controlsPanel);
+            _txtEndN = AddInputField("Конец (N):", "1000", controlsPanel);
+            _txtStep = AddInputField("Шаг (Step):", "1", controlsPanel);
 
             _btnStart = new Button
             {
@@ -81,27 +75,27 @@ namespace AlgorithmBenchmark
             {
                 Height = 6,
                 Margin = new Thickness(0, 0, 0, 10),
-                Visibility = Visibility.Collapsed // По умолчанию скрыт
+                Visibility = Visibility.Collapsed
             };
             Grid.SetRow(_progressBar, 1);
             mainGrid.Children.Add(_progressBar);
 
-            // График LiveCharts2
             _chart = new CartesianChart
             {
-                // Настройка серии данных (линейный график)
+                IsHitTestVisible = false,
+                TooltipPosition = LiveChartsCore.Measure.TooltipPosition.Hidden,
                 Series = new ISeries[]
                 {
                     new LineSeries<ObservablePoint>
                     {
                         Values = _chartValues,
-                        Name = "Сумма элементов O(N)",
+                        Name = "Сумма элементов",
                         Fill = null,
-                        GeometrySize = 6       // Размер точек
+                        GeometrySize = 6,
+                        EnableNullSplitting = false
                     }
                 },
-                // Подписи и конфигурация осей координат
-                XAxes = new Axis[] { new Axis { Name = "Размер массива (N)" } },
+                XAxes = new Axis[] { new Axis { Name = "Размер массива" } },
                 YAxes = new Axis[] { new Axis { Name = "Время (мс)" } }
             };
             Grid.SetRow(_chart, 2);
@@ -122,7 +116,8 @@ namespace AlgorithmBenchmark
             return input;
         }
 
-        private static long CalculateSum(int[] array)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static long CalculateSum(ReadOnlySpan<int> array)
         {
             long sum = 0;
             for (int i = 0; i < array.Length; i++)
@@ -134,49 +129,80 @@ namespace AlgorithmBenchmark
 
         private async void BtnStart_Click(object sender, RoutedEventArgs e)
         {
-            // Пользовательскии ввод
             if (!int.TryParse(_txtStartN.Text, out int startN) ||
                 !int.TryParse(_txtEndN.Text, out int endN) ||
-                !int.TryParse(_txtStep.Text, out int step) || step <= 0)
+                !int.TryParse(_txtStep.Text, out int step) || step <= 0 || startN < 0 || endN < startN)
             {
-                MessageBox.Show("Заполните все поля числовыми значениями.");
+                MessageBox.Show("Заполните корректно все поля числовыми значениями.");
                 return;
             }
 
-            // Блокировка интерфейса перед расчетами
             _btnStart.IsEnabled = false;
             _progressBar.Visibility = Visibility.Visible;
-            _progressBar.IsIndeterminate = true; // Анимация полосы загрузки
+            _progressBar.IsIndeterminate = true;
 
-            // Очистка предыдущих результатов графика
             _chartValues.Clear();
 
             await Task.Run(() =>
             {
+                
+                int[] maxData = new int[endN];
                 Random rng = new Random();
+                for (int i = 0; i < endN; i++)
+                {
+                    maxData[i] = rng.Next(1, 100);
+                }
 
-                CalculateSum(new int[100]);
+                Thread.CurrentThread.Priority = ThreadPriority.Highest;
+
+                
+                for (int i = 0; i < 50; i++)
+                {
+                    CalculateSum(maxData.AsSpan(0, Math.Min(1000, endN)));
+                }
+
+                List<ObservablePoint> results = new List<ObservablePoint>((endN - startN) / step + 1);
+
+
+                
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
 
                 for (int n = startN; n <= endN; n += step)
                 {
-                    int[] data = new int[n];
-                    for (int i = 0; i < n; i++)
+                    
+                    ReadOnlySpan<int> slice = maxData.AsSpan(0, n);
+
+                    long minTicks = long.MaxValue;
+                    const int runs = 3; 
+
+                    for (int r = 0; r < runs; r++)
                     {
-                        data[i] = rng.Next(1, 100);
+                        long startTicks = Stopwatch.GetTimestamp();
+                        CalculateSum(slice);
+                        long endTicks = Stopwatch.GetTimestamp();
+
+                        long elapsedTicks = endTicks - startTicks;
+                        if (elapsedTicks < minTicks)
+                        {
+                            minTicks = elapsedTicks;
+                        }
                     }
 
-                    // измерение времени выполнения метода
-                    Stopwatch sw = Stopwatch.StartNew();
-                    CalculateSum(data);
-                    sw.Stop();
-
-                    double elapsedMs = sw.Elapsed.TotalMilliseconds;
-
-                    Dispatcher.Invoke(() =>
-                    {
-                        _chartValues.Add(new ObservablePoint(n, elapsedMs));
-                    });
+                    double elapsedMs = (double)minTicks * 1000.0 / Stopwatch.Frequency;
+                    results.Add(new ObservablePoint(n, elapsedMs));
                 }
+
+                Thread.CurrentThread.Priority = ThreadPriority.Normal;
+
+                Dispatcher.Invoke(() =>
+                {
+                    foreach (var pt in results)
+                    {
+                        _chartValues.Add(pt);
+                    }
+                });
             });
 
             _progressBar.Visibility = Visibility.Collapsed;
