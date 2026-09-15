@@ -22,6 +22,8 @@ namespace AlgorithmBenchmark
         private Button _btnStart;
         private ProgressBar _progressBar;
 
+        private ComboBox _cbAlgorithms; // Поле для выпадающего списка
+
         private CartesianChart _chart;
         private readonly ObservableCollection<ObservablePoint> _chartValues = new();
 
@@ -51,6 +53,29 @@ namespace AlgorithmBenchmark
             };
 
             StackPanel controlsPanel = new StackPanel { Orientation = Orientation.Horizontal };
+
+            // Создаем выпадающий список алгоритмов
+            _cbAlgorithms = new ComboBox
+            {
+                Width = 200,
+                Height = 30,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 15, 0)
+            };
+
+            // Заполняем список названиями алгоритмов
+            _cbAlgorithms.Items.Add("1. Постоянная функция");
+            _cbAlgorithms.Items.Add("2. Сумма элементов");
+            _cbAlgorithms.Items.Add("3. Произведение элементов");
+            _cbAlgorithms.Items.Add("4. Прямое (наивное вычисление)");
+            _cbAlgorithms.Items.Add("5. (Bubble sort) Алгоритм сортировки пузырьком");
+            _cbAlgorithms.Items.Add("6. (Quick sort) Алгоритм быстрой сортировки");
+            _cbAlgorithms.Items.Add("7. (Timsort) Гибридный алгоритм сортировки элементов");
+
+            // Выбираем первый элемент по умолчанию
+            _cbAlgorithms.SelectedIndex = 0;
+
+            controlsPanel.Children.Add(_cbAlgorithms);
 
             _txtStartN = AddInputField("Старт (N):", "0", controlsPanel);
             _txtEndN = AddInputField("Конец (N):", "1000", controlsPanel);
