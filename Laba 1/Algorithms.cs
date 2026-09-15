@@ -6,26 +6,26 @@ namespace Laba_1
 {
     internal class Algorithms
     {
-        // 1 постоянная функция
-        public static double Constant(double[] v) => 1.0;
+        // 0 постоянная функция
+        public static int Constant(int[] v) => 1;
 
-        // 2 сумма элементов
-        public static double Sum(double[] v)
+        // 1 сумма элементов
+        public static int Sum(int[] v)
         {
-            double s = 0;
+            int s = 0;
             for (int i = 0; i < v.Length; i++) s += v[i];
             return s;
         }
 
-        // 3 произведение элементов
-        public static double Product(double[] v)
+        // 2 произведение элементов
+        public static int Product(int[] v)
         {
-            double p = 1;
+            int p = 1;
             for (int i = 0; i < v.Length; i++) p *= v[i];
             return p;
         }
 
-        // 4 прямое (наивное вычисление) P(x) 
+        // 3 Прямое (наивное вычисление)
         public static double PolyNaive(double[] v, double x)
         {
             double result = 0;
@@ -76,10 +76,12 @@ namespace Laba_1
             QuickSort(v, pivot + 1, maxIndex);
         }
 
-        private static int FindPivot(double[] v,int minIndex,int maxIndex)
+        // 7. (Timsort) Гибридный алгоритм сортировки элементов
+        private static int FindPivot(double[] v, int minIndex, int maxIndex)
         {
-            int pivot = minIndex -1, n = v.Length; ;
-            for (int i = 0; i < n - 1; i++) {
+            int pivot = minIndex - 1, n = v.Length; ;
+            for (int i = 0; i < n - 1; i++)
+            {
                 if (v[i] < v[n - 1])
                 {
                     pivot++;
@@ -91,65 +93,71 @@ namespace Laba_1
             return pivot;
         }
 
-        // 8 Возведение в степень (4 варианта)
-        public static double Pow(double x, int n)
-        {
-            double f = 1;
-            for (int k = 0; k < n; k++) f *= x;
-            return f;
-        }
 
-        //рекурсивно
-        public static double RecPow(double x, int n)  
-        {
-            if (n == 0) return 1;
+        /// Временно убрано (так делать нельзя)
 
-            double f = RecPow(x, n / 2);
-            f = f * f;
 
-            if (n % 2 == 1)
-            {
-                f = f * x;
-            }
 
-            return f;
-        }
-
-        // быстрый алгоритм
-        public static double QuickPow(double x, int n)
-        {
-            double f = 1;
-            double c = x;
-
-            while (n > 0)
-            {
-                if (n % 2 == 1)
+        /*
+                // 8 Возведение в степень (4 варианта)
+                public static double Pow(double x, int n)
                 {
-                    f = f * c;
+                    double f = 1;
+                    for (int k = 0; k < n; k++) f *= x;
+                    return f;
                 }
-                c = c * c;
-                n = n / 2;
-            }
 
-            return f;
-        }
-        // классический быстрый алгоритм
-        public static double QuickPow1(double x, int n)
-        {
-            double f = 1;
-
-            while (n > 0)
-            {
-                if (n % 2 == 1)
+                //рекурсивно
+                public static double RecPow(double x, int n)  
                 {
-                    f = f * x;
-                }
-                x = x * x;
-                n = n / 2;
-            }
+                    if (n == 0) return 1;
 
-            return f;
-        }
+                    double f = RecPow(x, n / 2);
+                    f = f * f;
+
+                    if (n % 2 == 1)
+                    {
+                        f = f * x;
+                    }
+
+                    return f;
+                }
+
+                // быстрый алгоритм
+                public static double QuickPow(double x, int n)
+                {
+                    double f = 1;
+                    double c = x;
+
+                    while (n > 0)
+                    {
+                        if (n % 2 == 1)
+                        {
+                            f = f * c;
+                        }
+                        c = c * c;
+                        n = n / 2;
+                    }
+
+                    return f;
+                }
+                // классический быстрый алгоритм
+                public static double QuickPow1(double x, int n)
+                {
+                    double f = 1;
+
+                    while (n > 0)
+                    {
+                        if (n % 2 == 1)
+                        {
+                            f = f * x;
+                        }
+                        x = x * x;
+                        n = n / 2;
+                    }
+
+                    return f;
+                }*/
 
     }
 }

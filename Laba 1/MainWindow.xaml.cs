@@ -1,4 +1,9 @@
-﻿using System;
+﻿using Laba_1;
+using LiveChartsCore;
+using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.WPF;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -7,10 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using LiveChartsCore;
-using LiveChartsCore.Defaults;
-using LiveChartsCore.SkiaSharpView;
-using LiveChartsCore.SkiaSharpView.WPF;
 
 namespace AlgorithmBenchmark
 {
@@ -68,9 +69,10 @@ namespace AlgorithmBenchmark
             _cbAlgorithms.Items.Add("2. Сумма элементов");
             _cbAlgorithms.Items.Add("3. Произведение элементов");
             _cbAlgorithms.Items.Add("4. Прямое (наивное вычисление)");
-            _cbAlgorithms.Items.Add("5. (Bubble sort) Алгоритм сортировки пузырьком");
-            _cbAlgorithms.Items.Add("6. (Quick sort) Алгоритм быстрой сортировки");
-            _cbAlgorithms.Items.Add("7. (Timsort) Гибридный алгоритм сортировки элементов");
+            _cbAlgorithms.Items.Add("5. Полином по схеме Горнера");
+            _cbAlgorithms.Items.Add("6. (Bubble sort) Алгоритм сортировки пузырьком");
+            _cbAlgorithms.Items.Add("7. (Quick sort) Алгоритм быстрой сортировки");
+            _cbAlgorithms.Items.Add("8. (Timsort) Гибридный алгоритм сортировки элементов");
 
             // Выбираем первый элемент по умолчанию
             _cbAlgorithms.SelectedIndex = 0;
@@ -168,55 +170,70 @@ namespace AlgorithmBenchmark
 
             _chartValues.Clear();
 
+            int selectedAlgorithm = _cbAlgorithms.SelectedIndex; // Выбранный алгоритм пользователем
+
             await Task.Run(() =>
             {
-                
+                // Создаем исходные данные типа double (согласно классу Algorithms)
                 int[] maxData = new int[endN];
                 Random rng = new Random();
                 for (int i = 0; i < endN; i++)
                 {
-                    maxData[i] = rng.Next(1, 100);
+                    maxData[i] = rng.Next(0,100);
                 }
 
                 Thread.CurrentThread.Priority = ThreadPriority.Highest;
 
-                
+                // Прогрев JIT-компилятора для выбранного алгоритма
+                int warmupSize = Math.Min(1000, endN);
+
+                // Готовим срезы двух типов заранее
+                int[] warmupInt = maxData.AsSpan(0, warmupSize).ToArray();
+                double[] warmupDouble = warmupInt.Select(x => (double)x).ToArray();
+
                 for (int i = 0; i < 50; i++)
                 {
-                    CalculateSum(maxData.AsSpan(0, Math.Min(1000, endN)));
+                    ExecuteAlgorithm(selectedAlgorithm, warmupInt, warmupDouble, warmupSize);
                 }
 
                 List<ObservablePoint> results = new List<ObservablePoint>((endN - startN) / step + 1);
 
-
-                
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 GC.Collect();
 
                 for (int n = startN; n <= endN; n += step)
                 {
-                    
-                    ReadOnlySpan<int> slice = maxData.AsSpan(0, n);
-
-                    long minTicks = long.MaxValue;
-                    const int runs = 3; 
+                    const int runs = 5;
+                    long totalTicks = 0;
 
                     for (int r = 0; r < runs; r++)
                     {
+                        //Готовка целочисленного среза
+                        int[] currentIntData = new int[n];
+                        Array.Copy(maxData, currentIntData, n);
+
+                        // Готовка вещественного среза
+                        double[] currentDoubleData = new double[n];
+                        for (int i = 0; i < n; i++)
+                        {
+                            currentDoubleData[i] = currentIntData[i];
+                        }
+
+                        // замер времени
                         long startTicks = Stopwatch.GetTimestamp();
-                        CalculateSum(slice);
+
+                        ExecuteAlgorithm(selectedAlgorithm, currentIntData, currentDoubleData, n);
+
                         long endTicks = Stopwatch.GetTimestamp();
 
-                        long elapsedTicks = endTicks - startTicks;
-                        if (elapsedTicks < minTicks)
-                        {
-                            minTicks = elapsedTicks;
-                        }
+                        totalTicks += (endTicks - startTicks);
                     }
 
-                    double elapsedMs = (double)minTicks * 1000.0 / Stopwatch.Frequency;
-                    results.Add(new ObservablePoint(n, elapsedMs));
+                    double avgTicks = (double)totalTicks / runs;
+                    double avgMs = (avgTicks * 1000.0) / Stopwatch.Frequency;
+
+                    _chartValues.Add(new ObservablePoint(n, avgMs));
                 }
 
                 Thread.CurrentThread.Priority = ThreadPriority.Normal;
@@ -232,6 +249,38 @@ namespace AlgorithmBenchmark
 
             _progressBar.Visibility = Visibility.Collapsed;
             _btnStart.IsEnabled = true;
+        }
+
+        // Вспомогательный метод с конструкцией switch для вызова метода из Algorithms
+        private void ExecuteAlgorithm(int algorithmIndex, int[] intData, double[] doubleData, int n)
+        {
+            switch (algorithmIndex)
+            {
+                case 0:
+                    Algorithms.Constant(intData);
+                    break;
+                case 1:
+                    Algorithms.Sum(intData);
+                    break;
+                case 2:
+                    Algorithms.Product(intData);
+                    break;
+                case 3:
+                    Algorithms.PolyNaive(doubleData, 1.5);
+                    break;
+                case 4:
+                    Algorithms.PolyHorner(doubleData, 1.5);
+                    break;
+                case 5:
+                    Algorithms.BubbleSort(doubleData);
+                    break;
+                case 6:
+                    Algorithms.QuickSort(doubleData);
+                    break;
+                case 7:
+                    //  Algorithms.FindPivot();
+                    break;
+            }
         }
     }
 }
