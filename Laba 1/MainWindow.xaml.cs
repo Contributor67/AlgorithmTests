@@ -17,40 +17,46 @@ namespace AlgorithmBenchmark
 {
     public partial class MainWindow : Window
     {
-        private TextBox _txtStartN;
-        private TextBox _txtEndN;
-        private TextBox _txtStep;
-        private Button _btnStart;
-        private ProgressBar _progressBar;
+        /// <summary>
+        /// Элементы интерфейса (UI)
+        /// </summary>        
+        private TextBox _txtStartN;     // Окно ввода начала отсчета
+        private TextBox _txtEndN;       // Окно ввода конца отсчетаего
+        private TextBox _txtStep;       // Шаг
+        private Button _btnStart;       // Окно старта
+        private ProgressBar _progressBar;// Линия загрузки, чтобы пользователь не подумал, что про него забыли
 
         private ComboBox _cbAlgorithms; // Поле для выпадающего списка
 
         private CartesianChart _chart;
-        private readonly ObservableCollection<ObservablePoint> _chartValues = new();
+        private readonly ObservableCollection<ObservablePoint> _chartValues = new(); // коллекция точек графика
 
         public MainWindow()
         {
-            Title = "Анализ времени выполнения алгоритма";
-            Width = 900;
-            Height = 600;
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            
+            Width = 900;    // Ширина окна приложения
+            Height = 600;   // Высота окна приложения
+            WindowStartupLocation = WindowStartupLocation.CenterScreen; // Позиция окна при открытии приложения
 
             Content = BuildInterface();
         }
 
         private UIElement BuildInterface()
         {
-            Grid mainGrid = new Grid { Margin = new Thickness(15) };
-
+            // Создаем сетку (грубо говоря окно, в котором будут располагаться наши объекты)
+            Grid mainGrid = new Grid { Margin = new Thickness(15) }; // ширина рамок 15 (отстцп от рамок окна)
+            
+            // Создаем строчки для кнопок, линии загрузки и графика
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
+            // Рамка для первой строки
             GroupBox groupBox = new GroupBox
             {
                 Header = " Параметры измерения ",
-                Margin = new Thickness(0, 0, 0, 10),
-                Padding = new Thickness(10)
+                Margin = new Thickness(0, 0, 0, 10), // Внешний отступ от краев нашей строки (первой ячейки в сетке)
+                Padding = new Thickness(10)         // Внутренний отступ
             };
 
             StackPanel controlsPanel = new StackPanel { Orientation = Orientation.Horizontal };
