@@ -143,17 +143,6 @@ namespace AlgorithmBenchmark
             return input;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static long CalculateSum(ReadOnlySpan<int> array)
-        {
-            long sum = 0;
-            for (int i = 0; i < array.Length; i++)
-            {
-                sum += array[i];
-            }
-            return sum;
-        }
-
         private async void BtnStart_Click(object sender, RoutedEventArgs e)
         {
             if (!int.TryParse(_txtStartN.Text, out int startN) ||
