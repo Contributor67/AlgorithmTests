@@ -508,6 +508,9 @@ namespace Laba_1
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
+                int[] intData = new int[endN];
+                double[] doubleData = new double[endN];
+
                 for (int n = startN; n <= endN; n += step)
                 {
                     if (token.IsCancellationRequested) return;
@@ -517,14 +520,13 @@ namespace Laba_1
 
                     for (int r = 0; r < runs; r++)
                     {
-                        int[] currentIntData = new int[n];
-                        Array.Copy(maxDataInt, currentIntData, n);
+                        Array.Copy(maxDataInt, intData, n);
 
-                        double[] currentDoubleData = new double[n];
-                        for (int i = 0; i < n; i++) currentDoubleData[i] = currentIntData[i];
+                        
+                        for (int i = 0; i < n; i++) doubleData[i] = intData[i];
 
                         long startTicks = Stopwatch.GetTimestamp();
-                        long steps = ExecuteAlgorithm(algorithmIndex, currentIntData, currentDoubleData, n);
+                        long steps = ExecuteAlgorithm(algorithmIndex, intData, doubleData, n);
                         long endTicks = Stopwatch.GetTimestamp();
 
                         long elapsedTicks = endTicks - startTicks;
