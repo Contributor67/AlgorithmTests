@@ -12,7 +12,7 @@ namespace Laba_1
 
         // Часть I. Операции с векторами
         // 1 постоянная функция
-        public static double Constant(double[] v) => 1.0;
+        public static double Constant(int[] v) => 1;
 
         // 1 сумма элементов
         public static int Sum(int[] v)
@@ -143,9 +143,9 @@ namespace Laba_1
 
         // Часть III. Индивидуальное задание
         // 9 проверка, есть ли в массиве повторяющиеся элементы
-        public static bool HasDuplicates(double[] v)
+        public static bool HasDuplicates(int[] v)
         {
-            var seen = new HashSet<double>();
+            var seen = new HashSet<int>();
             foreach (var x in v)
             {
                 if (!seen.Add(x))
@@ -155,7 +155,7 @@ namespace Laba_1
         }
 
         // 9 разворачивание массива, не создавая новый массив
-        public static void ReverseArray(double[] v)
+        public static void ReverseArray(int[] v)
         {
             int left = 0, right = v.Length - 1;
             while (left < right)
@@ -169,14 +169,14 @@ namespace Laba_1
         
         // 9 Сортировка Шелла (Shell Sort)
         // сортировка массива по возрастанию
-        public static void ShellSort(double[] v)
+        public static void ShellSort(int[] v) 
         {
             int n = v.Length;
             for (int gap = n / 2; gap > 0; gap /= 2)
             {
                 for (int i = gap; i < n; i++)
                 {
-                    double temp = v[i];
+                    int temp = v[i];
                     int j;
                     for (j = i; j >= gap && v[j - gap] > temp; j -= gap)
                         v[j] = v[j - gap];
