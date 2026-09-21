@@ -169,7 +169,7 @@ namespace Laba_1
         
         // 9 Сортировка Шелла (Shell Sort)
         // сортировка массива по возрастанию
-        public static void ShellSort(int[] v) 
+        public static void ShellSort(int[] v)
         {
             int n = v.Length;
             for (int gap = n / 2; gap > 0; gap /= 2)

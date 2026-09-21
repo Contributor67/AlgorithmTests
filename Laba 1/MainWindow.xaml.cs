@@ -5,6 +5,7 @@ using LiveChartsCore.SkiaSharpView.WPF;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -18,11 +19,17 @@ namespace Laba_1
 {
     public partial class MainWindow : Window
     {
-
         private TextBox _txtStartN;
         private TextBox _txtEndN;
         private TextBox _txtStep;
         private Button _btnStart;
+        private Button _btnStop;
+
+        // Новые элементы управления для истории БД
+        private ComboBox _cbHistory;
+        private Button _btnLoadHistory;
+
+        private CancellationTokenSource _cts;
         private ProgressBar _progressBar;
 
         private ComboBox _cbAlgorithms;
@@ -37,17 +44,50 @@ namespace Laba_1
         private TextBlock _txtMinZ;
         private TextBlock _txtMaxZ;
 
-
         public MainWindow()
         {
             InitializeComponent();
 
-            Title = "Анализ сложности алгоритмов";
-            Width = 1000;
-            Height = 720;
+            Title = "Анализ сложности алгоритмов (с БД PostgreSQL)";
+            Width = 1250;
+            Height = 750;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
             Content = BuildInterface();
+
+            Loaded += MainWindow_Loaded;
+        }
+
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await AppDbContext.InitDatabaseAsync();
+                await RefreshHistoryComboBoxAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка подключения к PostgreSQL: {ex.Message}\nПроверьте строку подключения в AppDbContext.cs",
+                                "Ошибка БД", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        // Вспомогательный метод для обновления списка замеров в ComboBox
+        private async Task RefreshHistoryComboBoxAsync()
+        {
+            try
+            {
+                var sessions = await AppDbContext.GetExperimentSessionsAsync();
+                _cbHistory.ItemsSource = sessions;
+                if (sessions.Count > 0)
+                {
+                    _cbHistory.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка загрузки истории: {ex.Message}");
+            }
         }
 
         private UIElement BuildInterface()
@@ -60,7 +100,7 @@ namespace Laba_1
 
             GroupBox groupBox = new GroupBox
             {
-                Header = " Параметры измерения ",
+                Header = " Панель управления измерениями и база данных ",
                 Margin = new Thickness(0, 0, 0, 10),
                 Padding = new Thickness(10)
             };
@@ -69,12 +109,11 @@ namespace Laba_1
 
             _cbAlgorithms = new ComboBox
             {
-                Width = 320,
+                Width = 260,
                 Height = 30,
                 VerticalContentAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 15, 0)
+                Margin = new Thickness(0, 0, 10, 0)
             };
-
             // Часть I. Операции с векторами
             _cbAlgorithms.Items.Add("1. Постоянная функция");
             _cbAlgorithms.Items.Add("2. Сумма элементов");
@@ -84,19 +123,16 @@ namespace Laba_1
             _cbAlgorithms.Items.Add("6. (Bubble Sort) Алгоритм сортировки пузырьком");
             _cbAlgorithms.Items.Add("7. (Quick Sort) Алгоритм быстрой сортировки");
             _cbAlgorithms.Items.Add("8. (TimSort) Гибридный алгоритм сортировки элементов");
-
             // Часть II. Матричные операции (3D)
             _cbAlgorithms.Items.Add("9. Умножение матриц A*B (3D Поверхность)");
-
             // Часть III. Индивидуальное задание
             _cbAlgorithms.Items.Add("10. (HasDuplicates) Проверка дубликатов ");
             _cbAlgorithms.Items.Add("11. (ReverseArray) Разворот массива");
             _cbAlgorithms.Items.Add("12. (ShellSort) Сортировка Шелла");
-
             // Часть IV. Алгоритмы возведения в степень
-            _cbAlgorithms.Items.Add("13. Возведение в степень PowIterative O(n)");
-            _cbAlgorithms.Items.Add("14. Возведение в степень PowRecursive O(n)");
-            _cbAlgorithms.Items.Add("15. Возведение в степень PowBinary O(log n)");
+            _cbAlgorithms.Items.Add("13. Простой итеративный алгоритм");
+            _cbAlgorithms.Items.Add("14. Рекурсивный алгоритм");
+            _cbAlgorithms.Items.Add("15. Быстрый (бинарный) алгоритм возведения в степень");
 
             _cbAlgorithms.SelectedIndex = 0;
             _cbAlgorithms.SelectionChanged += CbAlgorithms_SelectionChanged;
@@ -111,11 +147,56 @@ namespace Laba_1
             {
                 Content = " Начать замер ",
                 Height = 30,
-                Padding = new Thickness(15, 0, 15, 0),
+                Padding = new Thickness(10, 0, 10, 0),
                 VerticalAlignment = VerticalAlignment.Bottom
             };
             _btnStart.Click += BtnStart_Click;
             controlsPanel.Children.Add(_btnStart);
+
+            _btnStop = new Button
+            {
+                Content = " Стоп ",
+                Height = 30,
+                Margin = new Thickness(6, 0, 0, 0),
+                Padding = new Thickness(10, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                IsEnabled = false
+            };
+            _btnStop.Click += BtnStop_Click;
+            controlsPanel.Children.Add(_btnStop);
+
+            // Вертикальный разделитель
+            Border separator = new Border
+            {
+                Width = 1,
+                Background = Brushes.LightGray,
+                Margin = new Thickness(10, 2, 10, 2)
+            };
+            controlsPanel.Children.Add(separator);
+
+            // Выпадающий список сохраненных замеров в БД
+            StackPanel historyPanel = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+            historyPanel.Children.Add(new TextBlock { Text = "История замеров (из БД):", Margin = new Thickness(0, 0, 0, 4) });
+
+            _cbHistory = new ComboBox
+            {
+                Width = 320,
+                Height = 30,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            historyPanel.Children.Add(_cbHistory);
+            controlsPanel.Children.Add(historyPanel);
+
+            // Кнопка загрузки сохраненного графика
+            _btnLoadHistory = new Button
+            {
+                Content = " Загрузить график ",
+                Height = 30,
+                Padding = new Thickness(10, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Bottom
+            };
+            _btnLoadHistory.Click += BtnLoadHistory_Click;
+            controlsPanel.Children.Add(_btnLoadHistory);
 
             groupBox.Content = controlsPanel;
             Grid.SetRow(groupBox, 0);
@@ -189,12 +270,70 @@ namespace Laba_1
             return mainGrid;
         }
 
+        private void BtnStop_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _cts?.Cancel();
+            }
+            catch (ObjectDisposedException) { }
+
+            _btnStop.IsEnabled = false;
+        }
+
+        // Загрузка графика выбранного замера из БД
+        private async void BtnLoadHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (_cbHistory.SelectedItem is not ExperimentSession selectedSession)
+            {
+                MessageBox.Show("Выберите замер из списка истории.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var records = await AppDbContext.GetResultsForSessionAsync(selectedSession.ExperimentDate, selectedSession.AlgorithmName);
+                if (records.Count == 0) return;
+
+                _chartValues.Clear();
+
+                // Переключение отображения (2д/3д)
+                bool is3D = selectedSession.AlgorithmName.Contains("3D") || selectedSession.AlgorithmName.Contains("матриц");
+                _chart2D.Visibility = is3D ? Visibility.Collapsed : Visibility.Visible;
+                if (_canvas3D.Parent is Grid container3D)
+                {
+                    container3D.Visibility = is3D ? Visibility.Visible : Visibility.Collapsed;
+                }
+
+                if (!is3D)
+                {
+                    // Группируем замеры по N и берем среднее время для точек графика
+                    var aggregatedPoints = records
+                        .GroupBy(r => r.N)
+                        .OrderBy(g => g.Key)
+                        .Select(g => new ObservablePoint(g.Key, g.Average(r => r.ExecutionTimeMs)));
+
+                    foreach (var pt in aggregatedPoints)
+                    {
+                        _chartValues.Add(pt);
+                    }
+                }
+
+                MessageBox.Show($"График успешно восстановлен из БД!\nФункция: {selectedSession.AlgorithmName}\nЗаписей: {records.Count}",
+                                "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при загрузке данных из БД: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private TextBox AddInputField(string label, string defaultValue, StackPanel container)
         {
-            StackPanel fieldGroup = new StackPanel { Margin = new Thickness(0, 0, 15, 0) };
+            StackPanel fieldGroup = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
             fieldGroup.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 0, 4) });
 
-            TextBox input = new TextBox { Text = defaultValue, Width = 70 };
+            TextBox input = new TextBox { Text = defaultValue, Width = 60 };
             fieldGroup.Children.Add(input);
 
             container.Children.Add(fieldGroup);
@@ -212,10 +351,7 @@ namespace Laba_1
             }
         }
 
-        private bool IsMatrixAlgorithm(int index) => index == 14;
-
-
-
+        private bool IsMatrixAlgorithm(int index) => index == 8;
 
         private async void BtnStart_Click(object sender, RoutedEventArgs e)
         {
@@ -227,42 +363,86 @@ namespace Laba_1
                 return;
             }
 
+            _cts = new CancellationTokenSource();
             _btnStart.IsEnabled = false;
+            _btnStop.IsEnabled = true;
             _progressBar.Visibility = Visibility.Visible;
             _progressBar.IsIndeterminate = true;
 
             int selectedIndex = _cbAlgorithms.SelectedIndex;
 
-            if (IsMatrixAlgorithm(selectedIndex))
+            try
             {
-                await RunMatrix3DBenchmarkAsync(startN, endN, step);
-            }
-            else
-            {
-                await RunArray2DBenchmarkAsync(selectedIndex, startN, endN, step);
-            }
+                List<BenchmarkResult> dbResults;
 
-            _progressBar.Visibility = Visibility.Collapsed;
-            _btnStart.IsEnabled = true;
+                if (IsMatrixAlgorithm(selectedIndex))
+                {
+                    dbResults = await RunMatrix3DBenchmarkAsync(startN, endN, step, _cts.Token);
+                }
+                else
+                {
+                    dbResults = await RunArray2DBenchmarkAsync(selectedIndex, startN, endN, step, _cts.Token);
+                }
+
+                if (_cts != null && !_cts.IsCancellationRequested && dbResults != null && dbResults.Count > 0)
+                {
+                    // Автосохранение
+                    await AppDbContext.SaveResultsAsync(dbResults);
+
+                    // Автоматическое обновление выпадающего списка истории замеров
+                    await RefreshHistoryComboBoxAsync();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                MessageBox.Show("Вычисление остановлено пользователем.", "Отмена", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при выполнении: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _progressBar.Visibility = Visibility.Collapsed;
+                _btnStart.IsEnabled = true;
+                _btnStop.IsEnabled = false;
+                _cts?.Dispose();
+                _cts = null;
+            }
         }
 
-        private async Task RunMatrix3DBenchmarkAsync(int startN, int endN, int step)
+        private async Task<List<BenchmarkResult>> RunMatrix3DBenchmarkAsync(int startN, int endN, int step, CancellationToken token)
         {
             _canvas3D.Children.Clear();
             _legendPanel3D.Visibility = Visibility.Hidden;
 
             int count = ((endN - startN) / step) + 1;
             double[,] zData = new double[count, count];
+            List<BenchmarkResult> dbResults = new List<BenchmarkResult>();
+            string algName = _cbAlgorithms.SelectedItem.ToString();
+            DateTime experimentTimestamp = DateTime.UtcNow;
 
             await Task.Run(() =>
             {
-                Parallel.For(0, count, i =>
+                Parallel.For(0, count, (i, loopState) =>
                 {
+                    if (token.IsCancellationRequested)
+                    {
+                        loopState.Stop();
+                        return;
+                    }
+
                     int rowsA = startN + i * step;
                     Random rnd = new Random(Guid.NewGuid().GetHashCode());
 
                     for (int j = 0; j < count; j++)
                     {
+                        if (token.IsCancellationRequested)
+                        {
+                            loopState.Stop();
+                            return;
+                        }
+
                         int colsA = startN + j * step;
                         int colsB = rowsA;
 
@@ -273,17 +453,37 @@ namespace Laba_1
                         Algorithms.Multiply(A, B);
                         long endTicks = Stopwatch.GetTimestamp();
 
-                        zData[i, j] = (endTicks - startTicks) * 1000.0 / Stopwatch.Frequency;
+                        double elapsedMs = (endTicks - startTicks) * 1000.0 / Stopwatch.Frequency;
+                        zData[i, j] = elapsedMs;
+
+                        lock (dbResults)
+                        {
+                            dbResults.Add(new BenchmarkResult
+                            {
+                                AlgorithmName = algName,
+                                N = rowsA,
+                                RunNumber = 1,
+                                ExecutionTimeMs = elapsedMs,
+                                StepCount = (long)rowsA * colsA * colsB,
+                                ExperimentDate = experimentTimestamp
+                            });
+                        }
                     }
                 });
-            });
+            }, token);
+
+            if (token.IsCancellationRequested) return null;
 
             DrawMatrix3DSurface(zData, count);
+            return dbResults;
         }
 
-        private async Task RunArray2DBenchmarkAsync(int algorithmIndex, int startN, int endN, int step)
+        private async Task<List<BenchmarkResult>> RunArray2DBenchmarkAsync(int algorithmIndex, int startN, int endN, int step, CancellationToken token)
         {
             _chartValues.Clear();
+            string algName = _cbAlgorithms.SelectedItem.ToString();
+            List<BenchmarkResult> dbResults = new List<BenchmarkResult>();
+            DateTime experimentTimestamp = DateTime.UtcNow;
 
             await Task.Run(() =>
             {
@@ -299,6 +499,7 @@ namespace Laba_1
 
                 for (int i = 0; i < 10; i++)
                 {
+                    if (token.IsCancellationRequested) break;
                     ExecuteAlgorithm(algorithmIndex, warmupInt, warmupDouble, warmupSize);
                 }
 
@@ -309,6 +510,8 @@ namespace Laba_1
 
                 for (int n = startN; n <= endN; n += step)
                 {
+                    if (token.IsCancellationRequested) return;
+
                     const int runs = 5;
                     long totalTicks = 0;
 
@@ -321,10 +524,23 @@ namespace Laba_1
                         for (int i = 0; i < n; i++) currentDoubleData[i] = currentIntData[i];
 
                         long startTicks = Stopwatch.GetTimestamp();
-                        ExecuteAlgorithm(algorithmIndex, currentIntData, currentDoubleData, n);
+                        long steps = ExecuteAlgorithm(algorithmIndex, currentIntData, currentDoubleData, n);
                         long endTicks = Stopwatch.GetTimestamp();
 
-                        totalTicks += (endTicks - startTicks);
+                        long elapsedTicks = endTicks - startTicks;
+                        totalTicks += elapsedTicks;
+
+                        double singleRunMs = (elapsedTicks * 1000.0) / Stopwatch.Frequency;
+
+                        dbResults.Add(new BenchmarkResult
+                        {
+                            AlgorithmName = algName,
+                            N = n,
+                            RunNumber = r + 1,
+                            ExecutionTimeMs = singleRunMs,
+                            StepCount = steps > 0 ? steps : null,
+                            ExperimentDate = experimentTimestamp
+                        });
                     }
 
                     double avgMs = ((double)totalTicks / runs * 1000.0) / Stopwatch.Frequency;
@@ -337,30 +553,35 @@ namespace Laba_1
                 {
                     foreach (var pt in results) _chartValues.Add(pt);
                 });
-            });
+            }, token);
+
+            if (token.IsCancellationRequested) return null;
+
+            return dbResults;
         }
 
-        private void ExecuteAlgorithm(int algorithmIndex, int[] intData, double[] doubleData, int n)
+        private long ExecuteAlgorithm(int algorithmIndex, int[] intData, double[] doubleData, int n)
         {
             switch (algorithmIndex)
             {
                 //Часть I.
-                case 0: Algorithms.Constant(intData); break;
-                case 1: Algorithms.Sum(intData); break;
-                case 2: Algorithms.Product(intData); break;
-                case 3: Algorithms.PolyNaive(doubleData, 1.5); break;
-                case 4: Algorithms.PolyHorner(doubleData, 1.5); break;
-                case 5: Algorithms.BubbleSort(doubleData); break;
-                case 6: Algorithms.QuickSort(doubleData); break;
-                case 7: Algorithms.TimSort(doubleData); break;
+                case 0: Algorithms.Constant(intData); return n;
+                case 1: Algorithms.Sum(intData); return n;
+                case 2: Algorithms.Product(intData); return n;
+                case 3: Algorithms.PolyNaive(doubleData, 1.5); return n;
+                case 4: Algorithms.PolyHorner(doubleData, 1.5); return n;
+                case 5: Algorithms.BubbleSort(doubleData); return (long)n * n;
+                case 6: Algorithms.QuickSort(doubleData); return (long)(n * Math.Log2(n));
+                case 7: Algorithms.TimSort(doubleData); return (long)(n * Math.Log2(n));
                 //Часть III.
-                case 8: Algorithms.HasDuplicates(intData); break;
-                case 9: Algorithms.ReverseArray(intData); break;
-                case 10: Algorithms.ShellSort(intData); break;
+                case 9: Algorithms.HasDuplicates(intData); return (long)n * n;
+                case 10: Algorithms.ReverseArray(intData); return n / 2;
+                case 11: Algorithms.ShellSort(intData); return (long)(n * Math.Log2(n));
                 //Часть IV.
-                case 11: Algorithms.PowIterative(1.0001, n); break;
-                case 12: Algorithms.PowRecursive(1.0001, n); break;
-                case 13: Algorithms.PowBinary(1.0001, n); break;
+                case 12: Algorithms.PowIterative(1.0001, n); return n;
+                case 13: Algorithms.PowRecursive(1.0001, n); return n;
+                case 14: Algorithms.PowBinary(1.0001, n); return (long)Math.Log2(n);
+                default: return -1;
             }
         }
 
