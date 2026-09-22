@@ -34,11 +34,11 @@ namespace Laba_1
 
         private ComboBox _cbAlgorithms;
 
-        // 2д график (с библиотекой LiveChartsCore) 
+        // 2D график (с библиотекой LiveChartsCore) 
         private CartesianChart _chart2D;
         private readonly ObservableCollection<ObservablePoint> _chartValues = new();
 
-        // 3д график (Canvas) — для матричных операций
+        // 3D график (Canvas) — для матричных операций
         private Canvas _canvas3D;
         private StackPanel _legendPanel3D;
         private TextBlock _txtMinZ;
@@ -297,7 +297,7 @@ namespace Laba_1
 
                 _chartValues.Clear();
 
-                // Переключение отображения (2д/3д)
+                // Переключение отображения (2D/3D)
                 bool is3D = selectedSession.AlgorithmName.Contains("3D") || selectedSession.AlgorithmName.Contains("матриц");
                 _chart2D.Visibility = is3D ? Visibility.Collapsed : Visibility.Visible;
                 if (_canvas3D.Parent is Grid container3D)
@@ -587,7 +587,7 @@ namespace Laba_1
             }
         }
 
-        // дальше рисовка 3д графика для матриц
+        // Процесс создания 3D графиков для матриц
 
         private void DrawMatrix3DSurface(double[,] zData, int count)
         {
