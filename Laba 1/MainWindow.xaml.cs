@@ -588,90 +588,24 @@ namespace Laba_1
         {
             switch (algorithmIndex)
             {
-                // Часть I. 
-                case 0:
-                    Algorithms.Constant(intData, n);
-                    return 1;
-
-                case 1:
-                    Algorithms.Sum(intData, n);
-                    return n;
-
-                case 2:
-                    Algorithms.Product(intData, n);
-                    return n;
-
-                case 3:
-                    Algorithms.PolyNaive(doubleData, 1.5, n);
-                    return (long)n * n;
-
-                case 4:
-                    Algorithms.PolyHorner(doubleData, 1.5, n);
-                    return n;
-
-                case 5:
-                    {
-                        double[] copy = new double[n];
-                        Array.Copy(doubleData, copy, n);
-                        Algorithms.BubbleSort(copy, n);
-                        return (long)n * n;
-                    }
-
-                case 6:
-                    {
-                        double[] copy = new double[n];
-                        Array.Copy(doubleData, copy, n);
-                        Algorithms.QuickSort(copy, n);
-                        return (long)(n * Math.Log2(n));
-                    }
-
-                case 7:
-                    {
-                        double[] copy = new double[n];
-                        Array.Copy(doubleData, copy, n);
-                        Algorithms.TimSort(copy, n);
-                        return (long)(n * Math.Log2(n));
-                    }
-
+                // Часть I.
+                case 0: Algorithms.Constant(intData); return n;
+                case 1: Algorithms.Sum(intData); return n;
+                case 2: Algorithms.Product(intData); return n;
+                case 3: Algorithms.PolyNaive(doubleData, 1.5); return n;
+                case 4: Algorithms.PolyHorner(doubleData, 1.5); return n;
+                case 5: Algorithms.BubbleSort(doubleData); return (long)n * n;
+                case 6: Algorithms.QuickSort(doubleData); return (long)(n * Math.Log2(n));
+                case 7: Algorithms.TimSort(doubleData); return (long)(n * Math.Log2(n));
                 // Часть III.
-                case 9:
-                    Algorithms.HasDuplicates(intData, n);
-                    return n;
-
-                case 10:
-                    {
-                        int[] copy = new int[n];
-                        Array.Copy(intData, copy, n);
-                        Algorithms.ReverseArray(copy, n);
-                        return n / 2;
-                    }
-
-                case 11:
-                    {
-                        int[] copy = new int[n];
-                        Array.Copy(intData, copy, n);
-                        Algorithms.ShellSort(copy, n);
-                        return (long)(n * Math.Log2(n));
-                    }
-
-                // Часть IV. 
-                case 12:
-                    Algorithms.ResetSteps();
-                    Algorithms.PowIterative(1.0001, n);
-                    return n;
-
-                case 13:
-                    Algorithms.ResetSteps();
-                    Algorithms.PowRecursive(1.0001, n);
-                    return n;
-
-                case 14:
-                    Algorithms.ResetSteps();
-                    Algorithms.PowBinary(1.0001, n);
-                    return (long)Math.Log2(n);
-
-                default:
-                    return -1;
+                case 9: Algorithms.HasDuplicates(intData); return (long)n * n;
+                case 10: Algorithms.ReverseArray(intData); return n / 2;
+                case 11: Algorithms.ShellSort(intData); return (long)(n * Math.Log2(n));
+                // Часть IV.
+                case 12: Algorithms.PowIterative(1.0001, n); return n;
+                case 13: Algorithms.PowRecursive(1.0001, n); return n;
+                case 14: Algorithms.PowBinary(1.0001, n); return (long)Math.Log2(n);
+                default: return -1;
             }
         }
 
