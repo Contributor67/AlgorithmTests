@@ -12,52 +12,52 @@ namespace Laba_1
 
         // Часть I. Операции с векторами
         // 1 постоянная функция
-        public static double Constant(int[] v) => 1;
+        public static double Constant(int[] v, int n) => 1;
 
         // 1 сумма элементов
-        public static int Sum(int[] v)
+        public static int Sum(int[] v, int n)
         {
             int s = 0;
-            for (int i = 0; i < v.Length; i++) s += v[i];
+            for (int i = 0; i < n; i++) s += v[i];
             return s;
         }
 
         // 2 произведение элементов
-        public static int Product(int[] v)
+        public static int Product(int[] v, int n)
         {
             int p = 1;
-            for (int i = 0; i < v.Length; i++) p *= v[i];
+            for (int i = 0; i < n; i++) p *= v[i];
             return p;
         }
 
         // 4 прямое (наивное вычисление) 
-        public static double PolyNaive(double[] v, double x)
+        public static double PolyNaive(double[] v, double x, int n)
         {
             double result = 0;
-            int n = v.Length;
             for (int k = 0; k < n; k++)
             {
                 double term = v[k];
-                for (int i = 0; i < k; i++) term *= x;
+                for (int i = 0; i < k; i++)
+                {
+                    term *= x;
+                }
                 result += term;
             }
             return result;
         }
 
         // 4 Полином по схеме Горнера
-        public static double PolyHorner(double[] v, double x)
+        public static double PolyHorner(double[] v, double x, int n)
         {
             double result = 0;
-            int n = v.Length;
             for (int i = n - 1; i >= 0; i--)
                 result = result * x + v[i];
             return result;
         }
 
         // 5 алгоритм сортировки пузырьком (Bubble sort)
-        public static void BubbleSort(double[] v)
+        public static void BubbleSort(double[] v, int n)
         {
-            int n = v.Length;
             for (int i = 0; i < n - 1; i++)
             {
                 for (int j = 0; j < n - 1 - i; j++)
@@ -71,7 +71,7 @@ namespace Laba_1
         }
 
         // 6 Быстрая сортировка
-        public static void QuickSort(double[] v) => QuickSort(v, 0, v.Length - 1);
+        public static void QuickSort(double[] v, int n) => QuickSort(v, 0, n - 1);
 
         private static void QuickSort(double[] v, int low, int high)
         {
@@ -97,9 +97,9 @@ namespace Laba_1
             return i + 1;
         }
         // 7 Timsort
-        public static void TimSort(double[] v)
+        public static void TimSort(double[] v, int n)
         {
-            Array.Sort(v);
+            Array.Sort(v, 0, n);
         }
 
 
@@ -143,21 +143,21 @@ namespace Laba_1
 
         // Часть III. Индивидуальное задание
         // 9 проверка, есть ли в массиве повторяющиеся элементы
-        public static bool HasDuplicates(int[] v)
+        public static bool HasDuplicates(int[] v, int n)
         {
             var seen = new HashSet<int>();
-            foreach (var x in v)
+            for (int i = 0; i < n; i++)
             {
-                if (!seen.Add(x))
+                if (!seen.Add(v[i]))
                     return true;
             }
             return false;
         }
 
         // 9 разворачивание массива, не создавая новый массив
-        public static void ReverseArray(int[] v)
+        public static void ReverseArray(int[] v, int n)
         {
-            int left = 0, right = v.Length - 1;
+            int left = 0, right = n - 1;
             while (left < right)
             {
                 (v[left], v[right]) = (v[right], v[left]);
@@ -166,12 +166,11 @@ namespace Laba_1
             }
         }
 
-        
+
         // 9 Сортировка Шелла (Shell Sort)
         // сортировка массива по возрастанию
-        public static void ShellSort(int[] v)
+        public static void ShellSort(int[] v, int n)
         {
-            int n = v.Length;
             for (int gap = n / 2; gap > 0; gap /= 2)
             {
                 for (int i = gap; i < n; i++)
