@@ -1,6 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -35,13 +36,16 @@ namespace Laba_1
 
     public class AppDbContext : DbContext
     {
-        public DbSet<BenchmarkResult> BenchmarkResults { get; set; }
+        public DbSet<BenchmarkResult> BenchmarkResults { get; set; } = null!;
+
+        public static string DbFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "benchmarks_history.db");
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            // Укажите свои данные для подключения к PostgreSQL
-            string connectionString = "Host=localhost;Port=5432;Database=AlgorithmBenchmarksDb;Username=postgres;Password=your_password";
-            optionsBuilder.UseNpgsql(connectionString);
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlite($"Data Source={DbFilePath}");
+            }
         }
 
         public static async Task InitDatabaseAsync()
@@ -89,6 +93,45 @@ namespace Laba_1
                 .OrderBy(r => r.N)
                 .ThenBy(r => r.RunNumber)
                 .ToListAsync();
+        }
+
+        // 3. Получить все сохраненные замеры из БД
+        public static async Task<List<BenchmarkResult>> GetAllResultsAsync()
+        {
+            using var db = new AppDbContext();
+            return await db.BenchmarkResults
+                .OrderByDescending(r => r.Id)
+                .ToListAsync();
+        }
+
+        // 4. Очистить все замеры в БД
+        public static async Task ClearDatabaseAsync()
+        {
+            using var db = new AppDbContext();
+            db.BenchmarkResults.RemoveRange(db.BenchmarkResults);
+            await db.SaveChangesAsync();
+        }
+
+        // 5. Размер файла БД
+        public static long GetDatabaseFileSizeBytes()
+        {
+            try
+            {
+                if (File.Exists(DbFilePath))
+                {
+                    return new FileInfo(DbFilePath).Length;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        // 6. Очистка кэша оперативной памяти
+        public static void ForceClearMemoryCache()
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
     }
 }

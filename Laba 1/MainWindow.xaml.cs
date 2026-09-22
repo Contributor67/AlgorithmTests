@@ -1,4 +1,4 @@
-﻿using LiveChartsCore;
+using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.WPF;
@@ -15,6 +15,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
+using System.Windows.Input;
 
 namespace Laba_1
 {
@@ -46,11 +47,15 @@ namespace Laba_1
         private TextBlock _txtMinZ;
         private TextBlock _txtMaxZ;
 
+        // DB & Cache UI Elements
+        private DataGrid _dbDataGrid = null!;
+        private TextBlock _lblDbStats = null!;
+
         public MainWindow()
         {
             InitializeComponent();
 
-            Title = "Анализ сложности алгоритмов (с БД PostgreSQL)";
+            Title = "Анализ сложности алгоритмов (с БД SQLite / EF Core)";
             Width = 1250;
             Height = 750;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -66,10 +71,11 @@ namespace Laba_1
             {
                 await AppDbContext.InitDatabaseAsync();
                 await RefreshHistoryComboBoxAsync();
+                RefreshDatabaseGrid();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка подключения к PostgreSQL: {ex.Message}\nПроверьте строку подключения в AppDbContext.cs",
+                MessageBox.Show($"Ошибка инициализации БД: {ex.Message}",
                                 "Ошибка БД", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -93,6 +99,25 @@ namespace Laba_1
         }
 
         private UIElement BuildInterface()
+        {
+            TabControl tabControl = new TabControl
+            {
+                Margin = new Thickness(6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+
+            TabItem tabMain = new TabItem { Header = "📊 2D & 3D Замеры и Графики", FontWeight = FontWeights.Bold };
+            tabMain.Content = BuildMainBenchmarkContent();
+            tabControl.Items.Add(tabMain);
+
+            TabItem tabDb = new TabItem { Header = "🗄️ База Данных & Кэш Памяти", FontWeight = FontWeights.Bold };
+            tabDb.Content = BuildDbTabContent();
+            tabControl.Items.Add(tabDb);
+
+            return tabControl;
+        }
+
+        private UIElement BuildMainBenchmarkContent()
         {
             Grid mainGrid = new Grid { Margin = new Thickness(15) };
 
@@ -282,6 +307,184 @@ namespace Laba_1
             mainGrid.Children.Add(displayGrid);
 
             return mainGrid;
+        }
+
+        private UIElement BuildDbTabContent()
+        {
+            Grid dbGrid = new Grid { Margin = new Thickness(12) };
+            dbGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            dbGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            dbGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            GroupBox actionBox = new GroupBox
+            {
+                Header = " Панель управления локальной Базой Данных SQLite и Кэшем ",
+                Padding = new Thickness(10),
+                Margin = new Thickness(0, 0, 0, 10),
+                FontWeight = FontWeights.Bold
+            };
+
+            StackPanel toolBar = new StackPanel { Orientation = Orientation.Horizontal };
+
+            Button btnRefreshDb = new Button
+            {
+                Content = " 🔄 Обновить БД ",
+                Height = 30, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 10, 0),
+                FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Cursor = Cursors.Hand
+            };
+            btnRefreshDb.Click += (s, e) => RefreshDatabaseGrid();
+            toolBar.Children.Add(btnRefreshDb);
+
+            Button btnClearCache = new Button
+            {
+                Content = " 🧹 Очистить Кэш Памяти (GC) ",
+                Height = 30, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 10, 0),
+                FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")),
+                Cursor = Cursors.Hand
+            };
+            btnClearCache.Click += (s, e) =>
+            {
+                AppDbContext.ForceClearMemoryCache();
+                MessageBox.Show("Оперативный кэш памяти очищен (GC Collect выполнен).", "Очистка Кэша", MessageBoxButton.OK, MessageBoxImage.Information);
+                RefreshDatabaseGrid();
+            };
+            toolBar.Children.Add(btnClearCache);
+
+            Button btnClearDb = new Button
+            {
+                Content = " 🗑️ Очистить Всю БД ",
+                Height = 30, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 10, 0),
+                FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
+                Cursor = Cursors.Hand
+            };
+            btnClearDb.Click += async (s, e) =>
+            {
+                if (MessageBox.Show("Вы уверены, что хотите полностью очистить историю замеров в БД?", "Очистка БД", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                {
+                    await AppDbContext.ClearDatabaseAsync();
+                    await RefreshHistoryComboBoxAsync();
+                    RefreshDatabaseGrid();
+                }
+            };
+            toolBar.Children.Add(btnClearDb);
+
+            Button btnExportCsv = new Button
+            {
+                Content = " 📥 Экспорт в CSV ",
+                Height = 30, Padding = new Thickness(10, 0, 10, 0),
+                FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),
+                Cursor = Cursors.Hand
+            };
+            btnExportCsv.Click += (s, e) => ExportDatabaseToCsv();
+            toolBar.Children.Add(btnExportCsv);
+
+            actionBox.Content = toolBar;
+            Grid.SetRow(actionBox, 0);
+            dbGrid.Children.Add(actionBox);
+
+            Border statsCard = new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F1F5F9")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10),
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+
+            _lblDbStats = new TextBlock
+            {
+                Text = "📊 Загрузка статистики БД...",
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+            statsCard.Child = _lblDbStats;
+            Grid.SetRow(statsCard, 1);
+            dbGrid.Children.Add(statsCard);
+
+            _dbDataGrid = new DataGrid
+            {
+                AutoGenerateColumns = false,
+                IsReadOnly = true,
+                GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
+                Background = Brushes.White,
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                RowHeight = 28,
+                FontSize = 12,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                HeadersVisibility = DataGridHeadersVisibility.Column
+            };
+
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "ID", Binding = new System.Windows.Data.Binding("Id"), Width = 60 });
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "Алгоритм", Binding = new System.Windows.Data.Binding("AlgorithmName"), Width = 300 });
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "Размер (N)", Binding = new System.Windows.Data.Binding("N"), Width = 100 });
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "№ Прогона", Binding = new System.Windows.Data.Binding("RunNumber"), Width = 90 });
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "Время (мс)", Binding = new System.Windows.Data.Binding("ExecutionTimeMs") { StringFormat = "{0:F4}" }, Width = 120 });
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "Шаги", Binding = new System.Windows.Data.Binding("StepCount"), Width = 110 });
+            _dbDataGrid.Columns.Add(new DataGridTextColumn { Header = "Дата и Время", Binding = new System.Windows.Data.Binding("ExperimentDate") { StringFormat = "{0:dd.MM.yyyy HH:mm:ss}" }, Width = 170 });
+
+            Grid.SetRow(_dbDataGrid, 2);
+            dbGrid.Children.Add(_dbDataGrid);
+
+            RefreshDatabaseGrid();
+            return dbGrid;
+        }
+
+        private async void RefreshDatabaseGrid()
+        {
+            if (_dbDataGrid == null || _lblDbStats == null) return;
+
+            try
+            {
+                var records = await AppDbContext.GetAllResultsAsync();
+                _dbDataGrid.ItemsSource = records;
+
+                long dbSizeKb = AppDbContext.GetDatabaseFileSizeBytes() / 1024;
+                long currentRamMb = GC.GetTotalMemory(false) / (1024 * 1024);
+
+                _lblDbStats.Text = $"📊 Записей в БД: {records.Count} шт. | 💾 Файл БД: {dbSizeKb} КБ | ⚡ Оперативная память кэша: ~{currentRamMb} МБ";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка обновления таблицы БД: {ex.Message}");
+            }
+        }
+
+        private async void ExportDatabaseToCsv()
+        {
+            var records = await AppDbContext.GetAllResultsAsync();
+            if (records.Count == 0)
+            {
+                MessageBox.Show("База данных пуста. Нечего экспортировать.", "Экспорт в CSV", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string csvPath = System.IO.Path.Combine(desktopPath, "benchmarks_history_export.csv");
+
+                using var writer = new System.IO.StreamWriter(csvPath, false, System.Text.Encoding.UTF8);
+                writer.WriteLine("ID;AlgorithmName;N;RunNumber;ExecutionTimeMs;StepCount;ExperimentDate");
+
+                foreach (var r in records)
+                {
+                    writer.WriteLine($"{r.Id};\"{r.AlgorithmName}\";{r.N};{r.RunNumber};{r.ExecutionTimeMs:F6};{(r.StepCount.HasValue ? r.StepCount.Value.ToString() : "")};\"{r.ExperimentDate.ToLocalTime():yyyy-MM-dd HH:mm:ss}\"");
+                }
+
+                MessageBox.Show($"Данные успешно экспортированы на Рабочий стол:\n{csvPath}", "Экспорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка экспорта в CSV: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void BtnStop_Click(object sender, RoutedEventArgs e)
