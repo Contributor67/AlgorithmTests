@@ -5,7 +5,6 @@ using LiveChartsCore.SkiaSharpView.WPF;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -14,6 +13,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using LiveChartsCore.SkiaSharpView.Painting;
+using SkiaSharp;
 
 namespace Laba_1
 {
@@ -37,6 +38,7 @@ namespace Laba_1
         // 2D график (с библиотекой LiveChartsCore) 
         private CartesianChart _chart2D;
         private readonly ObservableCollection<ObservablePoint> _chartValues = new();
+        private readonly ObservableCollection<ObservablePoint> _theoreticalValues = new(); // Коллекция для теоретических замеров
 
         // 3D график (Canvas) — для матричных операций
         private Canvas _canvas3D;
@@ -219,12 +221,24 @@ namespace Laba_1
                 TooltipPosition = LiveChartsCore.Measure.TooltipPosition.Hidden,
                 Series = new ISeries[]
                 {
+                    // Практический замер
                     new LineSeries<ObservablePoint>
                     {
                         Values = _chartValues,
-                        Name = "Время выполнения",
+                        Name = "Фактический график",
                         Fill = null,
                         GeometrySize = 6,
+                        EnableNullSplitting = false
+                    },
+
+                    // Теоретический график
+                    new LineSeries<ObservablePoint>
+                    {
+                        Values = _theoreticalValues,
+                        Name = "Идеальный график",
+                        Fill = null,
+                        GeometrySize = 0, // Без кружков, только гладкая линия
+                        Stroke = new SolidColorPaint(SKColors.Crimson) { StrokeThickness = 2 },
                         EnableNullSplitting = false
                     }
                 },
@@ -293,9 +307,10 @@ namespace Laba_1
             try
             {
                 var records = await AppDbContext.GetResultsForSessionAsync(selectedSession.ExperimentDate, selectedSession.AlgorithmName);
-                if (records.Count == 0) return;
+                if (records == null || records.Count == 0) return;
 
                 _chartValues.Clear();
+                _theoreticalValues.Clear(); // Очищаем теоретическую коллекцию
 
                 // Переключение отображения (2D/3D)
                 bool is3D = selectedSession.AlgorithmName.Contains("3D") || selectedSession.AlgorithmName.Contains("матриц");
@@ -311,12 +326,16 @@ namespace Laba_1
                     var aggregatedPoints = records
                         .GroupBy(r => r.N)
                         .OrderBy(g => g.Key)
-                        .Select(g => new ObservablePoint(g.Key, g.Average(r => r.ExecutionTimeMs)));
+                        .Select(g => new ObservablePoint(g.Key, g.Average(r => r.ExecutionTimeMs)))
+                        .ToList();
 
                     foreach (var pt in aggregatedPoints)
                     {
                         _chartValues.Add(pt);
                     }
+
+                    // Расчет идеального теоретического графика из БД
+                    CalculateTheoreticalCurve(selectedSession.AlgorithmName, aggregatedPoints);
                 }
 
                 MessageBox.Show($"График успешно восстановлен из БД!\nФункция: {selectedSession.AlgorithmName}\nЗаписей: {records.Count}",
@@ -481,6 +500,7 @@ namespace Laba_1
         private async Task<List<BenchmarkResult>> RunArray2DBenchmarkAsync(int algorithmIndex, int startN, int endN, int step, CancellationToken token)
         {
             _chartValues.Clear();
+            _theoreticalValues.Clear(); // Очищаем теоретическую коллекцию перед новым замером
             string algName = _cbAlgorithms.SelectedItem.ToString();
             List<BenchmarkResult> dbResults = new List<BenchmarkResult>();
             DateTime experimentTimestamp = DateTime.UtcNow;
@@ -522,7 +542,6 @@ namespace Laba_1
                     {
                         Array.Copy(maxDataInt, intData, n);
 
-                        
                         for (int i = 0; i < n; i++) doubleData[i] = intData[i];
 
                         long startTicks = Stopwatch.GetTimestamp();
@@ -554,6 +573,9 @@ namespace Laba_1
                 Dispatcher.Invoke(() =>
                 {
                     foreach (var pt in results) _chartValues.Add(pt);
+
+                    // Расчет и построение идеальной кривой
+                    CalculateTheoreticalCurve(algName, results);
                 });
             }, token);
 
@@ -566,7 +588,7 @@ namespace Laba_1
         {
             switch (algorithmIndex)
             {
-                //Часть I.
+                // Часть I.
                 case 0: Algorithms.Constant(intData); return n;
                 case 1: Algorithms.Sum(intData); return n;
                 case 2: Algorithms.Product(intData); return n;
@@ -575,11 +597,11 @@ namespace Laba_1
                 case 5: Algorithms.BubbleSort(doubleData); return (long)n * n;
                 case 6: Algorithms.QuickSort(doubleData); return (long)(n * Math.Log2(n));
                 case 7: Algorithms.TimSort(doubleData); return (long)(n * Math.Log2(n));
-                //Часть III.
+                // Часть III.
                 case 9: Algorithms.HasDuplicates(intData); return (long)n * n;
                 case 10: Algorithms.ReverseArray(intData); return n / 2;
                 case 11: Algorithms.ShellSort(intData); return (long)(n * Math.Log2(n));
-                //Часть IV.
+                // Часть IV.
                 case 12: Algorithms.PowIterative(1.0001, n); return n;
                 case 13: Algorithms.PowRecursive(1.0001, n); return n;
                 case 14: Algorithms.PowBinary(1.0001, n); return (long)Math.Log2(n);
@@ -587,7 +609,65 @@ namespace Laba_1
             }
         }
 
-        // Процесс создания 3D графиков для матриц
+
+        // Метод определяет математическую функцию сложности по названию выбранного алгоритма
+        private (Func<double, double> Func, string Label) GetComplexityInfo(string algorithmName)
+        {
+            if (algorithmName.Contains("Постоянная"))
+                return (n => 1.0, "O(1)");
+
+            if (algorithmName.Contains("Bubble") || algorithmName.Contains("HasDuplicates") || algorithmName.Contains("Прямое вычисление"))
+                return (n => n * n, "O(N²)");
+
+            if (algorithmName.Contains("Quick") || algorithmName.Contains("TimSort") || algorithmName.Contains("Shell"))
+                return (n => n * Math.Log2(Math.Max(n, 1)), "O(N log N)");
+
+            if (algorithmName.Contains("быстрый") || algorithmName.Contains("бинарный") || algorithmName.Contains("PowBinary"))
+                return (n => Math.Log2(Math.Max(n, 1)), "O(log N)");
+
+            // По умолчанию O(N): Сумма, Произведение, Горнер, Разворот, Простой/Рекурсивный Pow и др.
+            return (n => n, "O(N)");
+        }
+
+        // Построение теоретической линии поверх практических результатов
+        private void CalculateTheoreticalCurve(string algorithmName, IEnumerable<ObservablePoint> actualPoints)
+        {
+            _theoreticalValues.Clear();
+            var pointsList = actualPoints?.Where(p => p.X.HasValue && p.Y.HasValue).ToList();
+            if (pointsList == null || pointsList.Count == 0) return;
+
+            var (complexityFunc, label) = GetComplexityInfo(algorithmName);
+
+            // Берём последнюю точку (максимальный N) для приведения к реальному масштабу времени (мс)
+            var maxPoint = pointsList.OrderBy(p => p.X.Value).LastOrDefault();
+            if (maxPoint == null) return;
+
+            double maxN = maxPoint.X.Value;
+            double maxY = maxPoint.Y.Value;
+            double theoreticalMax = complexityFunc(maxN);
+
+            if (theoreticalMax <= 0) theoreticalMax = 1;
+
+            // Коэффициент масштабирования k = Y_реальное / Y_теоретическое
+            double k = maxY / theoreticalMax;
+
+            foreach (var point in pointsList.OrderBy(p => p.X.Value))
+            {
+                double n = point.X.Value;
+                double idealTime = k * complexityFunc(n);
+                _theoreticalValues.Add(new ObservablePoint(n, idealTime));
+            }
+
+            // Обновляем название теоретической серии
+            if (_chart2D.Series.ElementAtOrDefault(1) is LineSeries<ObservablePoint> idealSeries)
+            {
+                idealSeries.Name = $"Идеальный {label}";
+            }
+        }
+
+
+        // дальше рисовка 3д графика для матриц
+
 
         private void DrawMatrix3DSurface(double[,] zData, int count)
         {
